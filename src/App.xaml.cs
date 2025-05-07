@@ -29,7 +29,7 @@ namespace KS2Drive
             UnicityMutex = new Mutex(true, "KS2.Drive", out MutexAcquisitionSuccess);
             if (!MutexAcquisitionSuccess)
             {
-                MessageBox.Show("Another instance of this program is already runnning.", "KS² Drive");
+                MessageBox.Show("Another instance of this program is already runnning.", "SecureDrive");
                 App.Current.Shutdown();
             }
 

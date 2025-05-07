@@ -804,7 +804,8 @@ namespace KS2Drive.FS
                     UInt64 AllocationSize = (CFN.FileInfo.FileSize + AllocationUnit - 1) / AllocationUnit * AllocationUnit;
                     SetFileSizeInternal(CFN, AllocationSize, true);
                 }
-
+                string x = CFN.FileSecurity.ToString();
+                string secure = BitConverter.ToString(CFN.FileSecurity);
                 if ((Flags & CleanupDelete) != 0)
                 {
                     var Proxy = new WebDavClient2();
