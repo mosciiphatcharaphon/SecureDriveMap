@@ -70,5 +70,7 @@ namespace KS2Drive.Config
         public String CertStoreLocation { get; set; }
         public String CertSerial { get; set; }
         public int Permission { get; set; }
+        public String VolumeLabel { get; set; }
+        public ulong quota { get; set; }
     }
 }

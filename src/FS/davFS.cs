@@ -18,6 +18,7 @@ using VolumeInfo = Fsp.Interop.VolumeInfo;
 using System.Windows.Forms;
 using System.Windows.Shapes;
 using static KS2Drive.Config.Configuration;
+using System.Drawing;
 
 namespace KS2Drive.FS
 {
@@ -37,6 +38,7 @@ namespace KS2Drive.FS
         private UInt32 MaxFileNodes;
         private UInt32 MaxFileSize;
         private String VolumeLabel;
+        private ulong Size;
         private String DAVServer;
         private string DAVServeurAuthority;
         private FlushMode FlushMode;
@@ -47,6 +49,7 @@ namespace KS2Drive.FS
         private WebDAVMode WebDAVMode;
         private String DocumentLibraryPath;
         private static List<PermissionModel> PermissionDrive = new List<PermissionModel>();
+        private static List<DrivePathList> DrivePath = new List<DrivePathList>();
 
         private CacheManager Cache;
 
@@ -65,7 +68,15 @@ namespace KS2Drive.FS
             this.WebDAVMode = webDAVMode;
             this.kernelCacheMode = kernelCacheMode;
             this.MountAsNetworkDrive = config.MountAsNetworkDrive;
-
+            this.VolumeLabel = config.VolumeLabel;
+            if (config.quota <= 0)
+            {
+                this.Size = 1099511627776;
+            }
+            else 
+            {
+                this.Size = config.quota; 
+            }
             var DavServerURI = new Uri(config.ServerURL);
             this.DAVServer = DavServerURI.GetLeftPart(UriPartial.Authority);
             this.DAVServeurAuthority = DavServerURI.DnsSafeHost;
@@ -79,7 +90,7 @@ namespace KS2Drive.FS
             PermissionDrive.Add(new PermissionModel() { filepath = this.DocumentLibraryPath, Create = Create, Read = Read, Update = Update, Delete = Delete, Share = Share });
             this.DAVLogin = config.ServerLogin;
             this.DAVPassword = config.ServerPassword;
-
+            DrivePath.Add(new DrivePathList() { URLPath = this.DocumentLibraryPath, DriveLetter = config.DriveLetter });
             FileNode.Init(this.DocumentLibraryPath, this.WebDAVMode);
             WebDavClient2.Init(this.DAVServer, this.DocumentLibraryPath, this.DAVLogin, this.DAVPassword, config.UseClientCertForAuthentication ? Tools.FindCertificate(config.CertStoreName, config.CertStoreLocation, config.CertSerial) : null);
             Cache = new CacheManager(CacheMode.Enabled, config.PreLoading);
@@ -134,8 +145,11 @@ namespace KS2Drive.FS
             out VolumeInfo VolumeInfo)
         {
             VolumeInfo = default(VolumeInfo);
-            VolumeInfo.TotalSize = MaxFileNodes * (UInt64)MaxFileSize;
-            VolumeInfo.FreeSize = MaxFileNodes * (UInt64)MaxFileSize;
+            //VolumeInfo.TotalSize = MaxFileNodes * (UInt64)MaxFileSize;
+            //VolumeInfo.FreeSize = MaxFileNodes * (UInt64)MaxFileSize;
+            VolumeInfo.TotalSize = Size;
+            VolumeInfo.FreeSize = Size;
+            //VolumeInfo.SetVolumeLabel("VolumeLabel");
             VolumeInfo.SetVolumeLabel(VolumeLabel);
             return STATUS_SUCCESS;
         }
@@ -493,18 +507,42 @@ namespace KS2Drive.FS
             {
                 try
                 {
-                    if (Proxy.Upload(RepositoryNewDocumentParentPath, new MemoryStream(new byte[0]), NewDocumentName).GetAwaiter().GetResult())
+                    bool isCreate = true;
+                    foreach (var permis in PermissionDrive)
                     {
-                        CFN = new FileNode(Proxy.GetRepositoryElement(FileName));
-                        CFN.HasUnflushedData = true;
+                        if (RepositoryNewDocumentParentPath == permis.filepath)
+                        {
+                            if (!permis.Create)
+                            {
+                                MessageAlert("แจ้งเตือน", "ไม่สามารถสร้างรายการนี้ได้");
+                                isCreate = false;
+                                break;
+                            }
+                        }
                     }
-                    else
+                    if (isCreate)
                     {
-                        L = new LogListItem() { Date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), Object = "None", Method = "Create", File = FileName, Result = "STATUS_CANNOT_MAKE" };
+                        if (Proxy.Upload(RepositoryNewDocumentParentPath, new MemoryStream(new byte[0]), NewDocumentName).GetAwaiter().GetResult() && isCreate)
+                        {
+                            CFN = new FileNode(Proxy.GetRepositoryElement(FileName));
+                            CFN.HasUnflushedData = true;
+                        }
+                        else
+                        {
+                            L = new LogListItem() { Date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), Object = "None", Method = "Create", File = FileName, Result = "STATUS_CANNOT_MAKE" };
+                            RepositoryActionPerformed?.Invoke(this, L);
+                            DebugEnd(OperationId, null, "STATUS_CANNOT_MAKE");
+                            return STATUS_CANNOT_MAKE;
+                        }
+                    }
+                    else 
+                    {
+                        L = new LogListItem() { Date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), Object = "None", Method = "Create", File = FileName, Result = "Permission denied to create file" };
                         RepositoryActionPerformed?.Invoke(this, L);
                         DebugEnd(OperationId, null, "STATUS_CANNOT_MAKE");
                         return STATUS_CANNOT_MAKE;
                     }
+                    
                 }
                 catch (WebDAVConflictException)
                 {
@@ -750,6 +788,7 @@ namespace KS2Drive.FS
                             if (CFN.FileData != null)
                             {
                                 var Proxy = new WebDavClient2();
+
                                 if (!Proxy.Upload(FileNode.GetRepositoryParentPath(CFN.RepositoryPath), new MemoryStream(CFN.FileData, 0, (int)CFN.FileInfo.FileSize), CFN.Name).GetAwaiter().GetResult())
                                 {
                                     CFN.GenerateLocalCopy();
@@ -794,7 +833,8 @@ namespace KS2Drive.FS
                 DebugStart(OperationId, CFN);
 
                 if (FileNode.IsRepositoryRootPath(CFN.RepositoryPath)) return;
-                
+                string safePath = CFN.RepositoryPath.Replace('/', System.IO.Path.DirectorySeparatorChar);
+                string dir = System.IO.Path.GetDirectoryName(safePath)?.Replace(System.IO.Path.DirectorySeparatorChar, '/');
                 if ((Flags & CleanupSetAllocationSize) != 0)
                 {
                     UInt64 AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
@@ -805,21 +845,17 @@ namespace KS2Drive.FS
                 string secure = BitConverter.ToString(CFN.FileSecurity);
                 if ((Flags & CleanupDelete) != 0)
                 {
-                    string safePath = CFN.RepositoryPath.Replace('/', System.IO.Path.DirectorySeparatorChar);
-                    string dir = System.IO.Path.GetDirectoryName(safePath)?.Replace(System.IO.Path.DirectorySeparatorChar, '/');
                     bool isDelete = true;
                     foreach (var permis in PermissionDrive)
                     {
                         if (dir == permis.filepath)
                         {
-                            if (permis.Delete)
+                            if (!permis.Delete)
                             {
-                                MessageBox.Show("ไม่สามารถลบรายการนี้ได้", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                MessageAlert("แจ้งเตือน", "ไม่สามารถลบรายการนี้ได้");
                                 isDelete = false;
-                                SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATH, Marshal.StringToHGlobalUni(@"F:\"), IntPtr.Zero);
                                 break;
                             }
-
                         }
                     }
                     var Proxy = new WebDavClient2();
@@ -862,6 +898,14 @@ namespace KS2Drive.FS
                             DebugEnd(OperationId, null, "STATUS_FAILED");
                         }
                     }
+                    foreach (var data in DrivePath)
+                    {
+                        if (dir == data.URLPath)
+                        {
+                            string drive = $@"{data.DriveLetter}:\";
+                            SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATH, Marshal.StringToHGlobalUni(drive), IntPtr.Zero);
+                        }
+                    }
                 }
                 else if ((Flags & CleanupSetAllocationSize) != 0 || (Flags & CleanupSetArchiveBit) != 0 || (Flags & CleanupSetLastWriteTime) != 0)
                 {
@@ -874,16 +918,39 @@ namespace KS2Drive.FS
                             {
                                 if (CFN.FileData != null)
                                 {
-                                    if (!Proxy.Upload(FileNode.GetRepositoryParentPath(CFN.RepositoryPath), new MemoryStream(CFN.FileData, 0, (int)CFN.FileInfo.FileSize), CFN.Name).GetAwaiter().GetResult())
+                                    bool isUpdate = true;
+                                    foreach (var permis in PermissionDrive)
                                     {
+                                        if (dir == permis.filepath)
+                                        {
+                                            if (!permis.Update)
+                                            {
+                                                MessageAlert("แจ้งเตือน", "ไม่สามารถอัพเดทรายการนี้ได้");
+                                                isUpdate = false;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (isUpdate)
+                                    {
+                                        if (!Proxy.Upload(FileNode.GetRepositoryParentPath(CFN.RepositoryPath), new MemoryStream(CFN.FileData, 0, (int)CFN.FileInfo.FileSize), CFN.Name).GetAwaiter().GetResult())
+                                        {
+                                            CFN.GenerateLocalCopy();
+                                            throw new Exception("Upload failed");
+                                        }
+                                        CFN.HasUnflushedData = false;
+                                        L = new LogListItem() { Date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), Object = CFN.ObjectId, Method = $"Cleanup Flush", File = CFN.LocalPath, Result = "STATUS_SUCCESS" };
+                                        RepositoryActionPerformed?.Invoke(this, L);
+                                        DebugEnd(OperationId, null, "STATUS_SUCCESS");
+                                    }
+                                    else 
+                                    {
+                                        CFN.HasUnflushedData = false;
                                         CFN.GenerateLocalCopy();
                                         throw new Exception("Upload failed");
                                     }
+                                    
                                 }
-                                CFN.HasUnflushedData = false;
-                                L = new LogListItem() { Date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), Object = CFN.ObjectId, Method = $"Cleanup Flush", File = CFN.LocalPath, Result = "STATUS_SUCCESS" };
-                                RepositoryActionPerformed?.Invoke(this, L);
-                                DebugEnd(OperationId, null, "STATUS_SUCCESS");
                             }
                             catch (Exception)
                             {
@@ -896,7 +963,7 @@ namespace KS2Drive.FS
                         }
                     }
                 }
-
+                
                 /*
                 FileNode FileNode = (FileNode)FileNode0;
 
@@ -1798,6 +1865,25 @@ namespace KS2Drive.FS
             }
             return result;
         }
+        public void MessageAlert(string type, string message) 
+        {
+            MessageBox.Show( message, type, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            //using (Form topmostForm = new Form())
+            //{
+            //    topmostForm.StartPosition = FormStartPosition.CenterScreen;
+            //    topmostForm.Size = new Size(1, 1);
+            //    topmostForm.ShowInTaskbar = true;
+            //    topmostForm.FormBorderStyle = FormBorderStyle.FixedToolWindow;
+            //    topmostForm.ShowInTaskbar = false;
+            //    topmostForm.TopMost = true;
+            //    //topmostForm.Show();
+            //    //topmostForm.Focus();
+
+            //    MessageBox.Show(topmostForm, message, type, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+            //    topmostForm.Close();
+            //}
+        }
         private class PermissionModel
         {
             public string filepath { get; set; }
@@ -1806,6 +1892,11 @@ namespace KS2Drive.FS
             public bool Update { get; set; }
             public bool Delete { get; set; }
             public bool Share { get; set; }
+        }
+        private class DrivePathList
+        {
+            public string URLPath { get; set; }
+            public string DriveLetter { get; set; }
         }
 
     }

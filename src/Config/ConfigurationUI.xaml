@@ -8,7 +8,7 @@
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
     xmlns:extToolkit="http://schemas.xceed.com/wpf/xaml/toolkit"
     mc:Ignorable="d"
-        Title="SecureDrive - Configuration" Height="500" Width="650" WindowStyle="ToolWindow" WindowStartupLocation="CenterScreen" ResizeMode="NoResize" Icon="/KS2Drive;component/Resources/securedrive_logo.ico">
+        Title="SecureDrive - Configuration" Height="500" Width="650" WindowStyle="ToolWindow" WindowStartupLocation="CenterScreen" ResizeMode="NoResize" Icon="/SecureDrive;component/Resources/securedrive_logo.ico">
     <Window.Resources>
         <local:ProxyActivator x:Key="ProxyActivator" />
         <sys:Int32 x:Key="IntZero">0</sys:Int32>
