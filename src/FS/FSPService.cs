@@ -4,46 +4,158 @@ using KS2Drive.FS;
 using KS2Drive.Log;
 using System;
 using System.IO;
+using System.Net.Http.Headers;
+using System.Net.Http;
+using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Xml.Serialization;
+using System.Collections.Generic;
+using System.Xml;
+using System.Diagnostics;
 
 namespace KS2Drive
 {
     public class FSPService : Service
     {
-        private FileSystemHost Host;
-        private DavFS davFs;
+        private List<FileSystemHost> Hosts = new List<FileSystemHost>();
+        private List<DavFS> DavFileSystems = new List<DavFS>();
         public event EventHandler<LogListItem> RepositoryActionPerformed;
         public event EventHandler RepositoryAuthenticationFailed;
+        public List<string> driveLetterList = new List<string>();
+        public FSPService() : base("KS2DriveService") { }
 
-        public FSPService() : base("KS2DriveService")
+        public async Task<List<string>> Mount(Configuration config)
         {
-        }
-
-        public void Mount(Configuration config)
-        {
-            davFs = new DavFS(config);
+            var davFs = new DavFS(config);
             davFs.RepositoryActionPerformed += (s, e) => { RepositoryActionPerformed?.Invoke(s, e); };
             davFs.RepositoryAuthenticationFailed += (s, e) => { RepositoryAuthenticationFailed?.Invoke(s, e); };
-
-            Host = new FileSystemHost(davFs);
-            if (Host.Mount($"{config.DriveLetter}:", null, config.SyncOps, 0) < 0) throw new IOException("cannot mount file system");
+            var host = new FileSystemHost(davFs);
+            string drive = $"{config.DriveLetter}:";
+            if (host.Mount(drive, null, config.SyncOps, 0) >= 0)
+            {
+                Hosts.Add(host);
+                DavFileSystems.Add(davFs);
+                driveLetterList.Add(drive);
+            }
+            else
+            {
+                throw new IOException($"Cannot mount file system at {drive}");
+            }
+            return driveLetterList;
         }
-
         public void Unmount()
         {
-            davFs.RepositoryActionPerformed -= (s, e) => { RepositoryActionPerformed?.Invoke(s, e); };
-            davFs.RepositoryAuthenticationFailed -= (s, e) => { RepositoryAuthenticationFailed?.Invoke(s, e); };
+            foreach (var fs in DavFileSystems)
+            {
+                fs.RepositoryActionPerformed -= (s, e) => { RepositoryActionPerformed?.Invoke(s, e); };
+                fs.RepositoryAuthenticationFailed -= (s, e) => { RepositoryAuthenticationFailed?.Invoke(s, e); };
+            }
 
-            Host.Unmount();
-            Host = null;
+            foreach (var host in Hosts)
+            {
+                host.Unmount();
+            }
+
+            Hosts.Clear();
+            DavFileSystems.Clear();
         }
 
         protected override void OnStop()
         {
-            if (Host != null)
+            Unmount();
+        }
+        [XmlRoot("ocs")]
+        public class OcsResponse
+        {
+            [XmlElement("meta")]
+            public Meta Meta { get; set; }
+
+            [XmlElement("data")]
+            public Data Data { get; set; }
+        }
+
+        public class Meta
+        {
+            [XmlElement("status")]
+            public string Status { get; set; }
+
+            [XmlElement("statuscode")]
+            public int StatusCode { get; set; }
+
+            [XmlElement("message")]
+            public string Message { get; set; }
+        }
+
+        public class Data
+        {
+            [XmlElement("element")]
+            public List<GroupElements> Elements { get; set; }
+        }
+
+        public class GroupElements
+        {
+            [XmlElement("id")]
+            public int Id { get; set; }
+
+            [XmlElement("mount_point")]
+            public string MountPoint { get; set; }
+
+            [XmlElement("groups")]
+            public Groups Groups { get; set; }
+
+            [XmlElement("is_drive")]
+            public int IsDrive { get; set; }
+
+            [XmlElement("quota")]
+            public long Quota { get; set; }
+
+            [XmlElement("size")]
+            public long Size { get; set; }
+
+            [XmlElement("acl")]
+            public int Acl { get; set; }
+
+            [XmlElement("parentspath")]
+            public string ParentsPath { get; set; }
+
+            [XmlArray("manage")]
+            [XmlArrayItem("element")]
+            public List<ManageEntry> Manage { get; set; }
+        }
+
+
+        public class ManageEntry
+        {
+            [XmlElement("type")]
+            public string Type { get; set; }
+
+            [XmlElement("id")]
+            public string Id { get; set; }
+
+            [XmlElement("displayname")]
+            public string DisplayName { get; set; }
+        }
+        public class Groups
+        {
+            [XmlAnyElement]
+            public XmlElement[] AnyElements { get; set; }
+
+            public Dictionary<string, int> ToDictionary()
             {
-                Unmount();
+                var dict = new Dictionary<string, int>();
+                if (AnyElements != null)
+                {
+                    foreach (var el in AnyElements)
+                    {
+                        if (int.TryParse(el.InnerText, out int value))
+                        {
+                            dict[el.Name] = value;
+                        }
+                    }
+                }
+                return dict;
             }
         }
     }

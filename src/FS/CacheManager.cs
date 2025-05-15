@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -66,25 +67,20 @@ namespace KS2Drive.FS
         /// </summary>
         public (FileNode node, bool IsNonExistent) GetFileNodeNoLock(String FileOrFolderLocalPath)
         {
-            if (_mode == CacheMode.Disabled) return (null, false);
+            if (FileNodeCache.TryGetValue(FileOrFolderLocalPath, out var node))
+            {
+                Debug.WriteLine($"Cache hit: {FileOrFolderLocalPath}");
+                return (node, false);
+            }
 
-            if (!FileNodeCache.ContainsKey(FileOrFolderLocalPath))
+            if (MissingFileCache.ContainsKey(FileOrFolderLocalPath))
             {
-                //Is there a valid mising file entry for this file
-                if (MissingFileCache.ContainsKey(FileOrFolderLocalPath) && (DateTime.Now - MissingFileCache[FileOrFolderLocalPath]).TotalSeconds <= CacheDurationInSeconds)
-                {
-                    //Less than (CacheDurationInSeconds) seconds ago, the file was not existing. We send the same answer
-                    return (null, true);
-                }
-                else
-                {
-                    return (null, false);
-                }
+                Debug.WriteLine($"Cache miss (non-existent): {FileOrFolderLocalPath}");
+                return (null, true);
             }
-            else
-            {
-                return (FileNodeCache[FileOrFolderLocalPath], false);
-            }
+
+            Debug.WriteLine($"Cache miss: {FileOrFolderLocalPath}");
+            return (null, false);
         }
 
         public void AddFileNodeNoLock(FileNode node)
@@ -92,7 +88,7 @@ namespace KS2Drive.FS
             if (_mode == CacheMode.Disabled) return;
 
             if (FileNodeCache.ContainsKey(node.LocalPath)) return; //TODO : monitor which condition can lead to this
-
+            //FileNodeCache[node.LocalPath] = node;
             FileNodeCache.Add(node.LocalPath, node);
             MissingFileCache.Remove(node.LocalPath); //Remove the file from the known missing files list
             CacheRefreshed?.Invoke(this, null);
@@ -349,13 +345,17 @@ namespace KS2Drive.FS
 
             foreach (var Child in ItemsInFolder)
             {
+                if (Child.IsCollection) continue; // ข้ามถ้าเป็น folder
+
                 var Element = new FileNode(Child);
-                if (Element.RepositoryPath.Equals(CFN.RepositoryPath)) continue; //Bypass l'entrée correspondant à l'élément appelant
+                if (Element.RepositoryPath.Equals(CFN.RepositoryPath)) continue; // ข้ามตัวเอง
+
                 ChildrenFileNames.Add(new Tuple<string, FileNode>(Element.Name, Element));
             }
 
             return (true, ChildrenFileNames, null);
         }
+
 
         public void AddMissingFileNoLock(String FileOrFolderPath)
         {

@@ -3,13 +3,20 @@ using KS2Drive.Log;
 using KS2Drive.WinFSP;
 using MahApps.Metro.Controls;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Net.Http.Headers;
+using System.Net.Http;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Xml.Serialization;
+using static KS2Drive.FSPService;
+using static KS2Drive.Config.Configuration;
 
 namespace KS2Drive
 {
@@ -20,6 +27,7 @@ namespace KS2Drive
         private Thread T;
         private Configuration AppConfiguration;
         public ObservableCollection<LogListItem> ItemsToLog = new ObservableCollection<LogListItem>();
+        public List<string> driveLetterList = new List<string>();
 
         //Set the WinFSP version against which the program was built (see /Reference folder in source)
         //Installer ProductCode (can be extracted from MSI file with superorca http://www.pantaray.com/msi_super_orca.html)
@@ -91,7 +99,8 @@ namespace KS2Drive
                     {
                         if (!e1.AllowRetryOrRecover) Dispatcher.Invoke(() => AppNotificationIcon.ShowBalloonTip(3000, "KS² Drive", $"The action {e1.Method} for the file {e1.File} failed", System.Windows.Forms.ToolTipIcon.Warning));
                         else Dispatcher.Invoke(() => AppNotificationIcon.ShowBalloonTip(3000, "KS² Drive", $"The action {e1.Method} for the file {e1.File} failed. You can recover this file via the LOG menu", System.Windows.Forms.ToolTipIcon.Warning));
-                    };
+                    }
+                    ;
                 };
 
                 Service.RepositoryAuthenticationFailed += (s2, e2) =>
@@ -127,26 +136,124 @@ namespace KS2Drive
                 MenuConfigure_Click(this, null);
             }
         }
+        private async void MountDrive()
+        {
+            OcsResponse res = await GetGroupFolderXml(this.AppConfiguration);
+            if (res?.Data?.Elements == null) return;
+            string driveLetter = "";
+            foreach (var folder in res.Data.Elements)
+            {
+                var newConfig = new Configuration();
+                newConfig.IsConfigured = this.AppConfiguration.IsConfigured;
+                newConfig.AutoMount = this.AppConfiguration.AutoMount;
+                newConfig.DriveLetter = this.AppConfiguration.DriveLetter;
+                newConfig.ServerType = this.AppConfiguration.ServerType;
+                newConfig.ServerLogin = this.AppConfiguration.ServerLogin;
+                newConfig.ServerPassword = this.AppConfiguration.ServerPassword;
+                newConfig.KernelCacheMode = this.AppConfiguration.KernelCacheMode;
+                newConfig.FlushMode = this.AppConfiguration.FlushMode;
+                newConfig.SyncOps = this.AppConfiguration.SyncOps;
+                newConfig.PreLoading = this.AppConfiguration.PreLoading;
+                newConfig.MountAsNetworkDrive = this.AppConfiguration.MountAsNetworkDrive;
+                newConfig.HTTPProxyMode = this.AppConfiguration.HTTPProxyMode;
+                newConfig.ProxyURL = this.AppConfiguration.ProxyURL;
+                newConfig.UseProxyAuthentication = this.AppConfiguration.UseProxyAuthentication;
+                newConfig.ProxyLogin = this.AppConfiguration.ProxyLogin;
+                newConfig.ProxyPassword = this.AppConfiguration.ProxyPassword;
+                newConfig.UseClientCertForAuthentication = this.AppConfiguration.UseClientCertForAuthentication;
+                newConfig.CertStoreName = this.AppConfiguration.CertStoreName;
+                newConfig.CertStoreLocation = this.AppConfiguration.CertStoreLocation;
+                newConfig.CertSerial = this.AppConfiguration.CertSerial;
+                int permission = 0;
+                if (folder.Groups.AnyElements != null) 
+                {
+                    foreach (var group in folder.Groups.AnyElements)
+                    {
+                        if (group.Name == "admin") 
+                        {
+                            permission = int.Parse(group.InnerText);
+                        }
+                    }
+                }
+                newConfig.Permission = permission;
+                if (folder.Id != -1)
+                {
+                    if (!string.IsNullOrEmpty(folder.ParentsPath))
+                    {
+                        newConfig.ServerURL = $"{this.AppConfiguration.ServerURL.TrimEnd('/')}/{folder.ParentsPath.TrimStart('/')}/{folder.MountPoint.TrimStart('/')}";
+                    }
+                }
+                if (string.IsNullOrEmpty(newConfig.ServerURL))
+                {
+                    newConfig.ServerURL = this.AppConfiguration.ServerURL;
+                    newConfig.DriveLetter = this.AppConfiguration.DriveLetter;
+                }
+                if (folder.IsDrive != 0 || folder.Id == -1)
+                {
+                    if (string.IsNullOrEmpty(driveLetter))
+                    {
+                        driveLetter = this.AppConfiguration.DriveLetter;
+                    }
+                    else
+                    {
+                        driveLetter = driveLetterList[driveLetterList.Count - 1];
+                        driveLetter = ((char)(driveLetter[0] + 1)).ToString();
+                        newConfig.DriveLetter = driveLetter;
+                    }
+                    try
+                    {
+                        driveLetterList = await Service.Mount(newConfig);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.Message);
+                        return;
+                    }
+                    ItemsToLog.Clear();
+                    ((MenuItem)AppMenu.Items[0]).Header = "_UNMOUNT";
+                    IsMounted = true;
+                    ((MenuItem)AppMenu.Items[2]).IsEnabled = false;
+                    Process.Start($@"{driveLetter.Replace(":", "")}:\");
+                    Thread.Sleep(2500);
+                }
 
-        private void MountDrive()
+            }
+        }
+        private async Task<OcsResponse> GetGroupFolderXml(Configuration config)
         {
             try
             {
-                Service.Mount(this.AppConfiguration);
+                var uri = new Uri(config.ServerURL);
+                var baseUrl = $"{uri.Scheme}://{uri.Host}";
+                if (!uri.IsDefaultPort)
+                {
+                    baseUrl += $":{uri.Port}";
+                }
+                string username = config.ServerLogin;
+                string password = config.ServerPassword;
+                string url = $"{baseUrl}/ocs/v2.php/cloud/users/{username}/groupFolder";
+
+                using (var client = new HttpClient())
+                {
+                    var byteArray = Encoding.ASCII.GetBytes($"{username}:{password}");
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(byteArray));
+                    client.DefaultRequestHeaders.Add("OCS-APIRequest", "true");
+
+                    var response = await client.GetAsync(url);
+                    response.EnsureSuccessStatusCode();
+
+                    var xml = await response.Content.ReadAsStringAsync();
+                    var serializer = new XmlSerializer(typeof(OcsResponse));
+                    using (var reader = new StringReader(xml))
+                    {
+                        return (OcsResponse)serializer.Deserialize(reader);
+                    }
+                }
             }
             catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message);
-                return;
-            }
-
-            ItemsToLog.Clear();
-            ((MenuItem)AppMenu.Items[0]).Header = "_UNMOUNT";
-            IsMounted = true;
-            ((MenuItem)AppMenu.Items[2]).IsEnabled = false;
-            Process.Start($@"{this.AppConfiguration.DriveLetter}:\");
+            { }
+            return null;
         }
-
         private void UnmountDrive()
         {
             try
@@ -274,7 +381,7 @@ namespace KS2Drive
                 }
             }
         }
-
         #endregion
+
     }
 }

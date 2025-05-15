@@ -15,15 +15,25 @@ using System.Threading;
 using WebDAVClient.Helpers;
 using FileInfo = Fsp.Interop.FileInfo;
 using VolumeInfo = Fsp.Interop.VolumeInfo;
+using System.Windows.Forms;
+using System.Windows.Shapes;
+using static KS2Drive.Config.Configuration;
 
 namespace KS2Drive.FS
 {
     public class DavFS : FileSystemBase
     {
+        [DllImport("shell32.dll")]
+        static extern void SHChangeNotify(uint wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
+
+        const uint SHCNE_UPDATEITEM = 0x00002000;
+        const uint SHCNF_PATH = 0x0005;
+
         public event EventHandler<LogListItem> RepositoryActionPerformed;
         public event EventHandler RepositoryAuthenticationFailed;
         private static Logger logger = LogManager.GetCurrentClassLogger();
 
+        private String Type;
         private UInt32 MaxFileNodes;
         private UInt32 MaxFileSize;
         private String VolumeLabel;
@@ -36,6 +46,7 @@ namespace KS2Drive.FS
         private String DAVPassword;
         private WebDAVMode WebDAVMode;
         private String DocumentLibraryPath;
+        private static List<PermissionModel> PermissionDrive = new List<PermissionModel>();
 
         private CacheManager Cache;
 
@@ -59,7 +70,13 @@ namespace KS2Drive.FS
             this.DAVServer = DavServerURI.GetLeftPart(UriPartial.Authority);
             this.DAVServeurAuthority = DavServerURI.DnsSafeHost;
             this.DocumentLibraryPath = DavServerURI.PathAndQuery.EndsWith("/") ? DavServerURI.PathAndQuery.Remove(DavServerURI.PathAndQuery.Length - 1) : DavServerURI.PathAndQuery;
-
+            var permissionList = CheckPermissions(config.Permission);
+            bool Create = permissionList.ContainsKey("Create") && permissionList["Create"];
+            bool Read = permissionList.ContainsKey("Read") && permissionList["Read"];
+            bool Update = permissionList.ContainsKey("Update") && permissionList["Update"];
+            bool Delete = permissionList.ContainsKey("Delete") && permissionList["Delete"];
+            bool Share = permissionList.ContainsKey("Share") && permissionList["Share"];
+            PermissionDrive.Add(new PermissionModel() { filepath = this.DocumentLibraryPath, Create = Create, Read = Read, Update = Update, Delete = Delete, Share = Share });
             this.DAVLogin = config.ServerLogin;
             this.DAVPassword = config.ServerPassword;
 
@@ -68,19 +85,19 @@ namespace KS2Drive.FS
             Cache = new CacheManager(CacheMode.Enabled, config.PreLoading);
 
             //Test connection to server with the parameters entered in the configuration screen
-            var Proxy = new WebDavClient2();
-            try
-            {
-                var LisTest = Proxy.List("/").GetAwaiter().GetResult();
-            }
-            catch (WebDAVException ex) when (ex.GetHttpCode() == 401)
-            {
-                throw new Exception($"Cannot connect to server : Invalid credentials");
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Cannot connect to server : {ex.Message}");
-            }
+            //var Proxy = new WebDavClient2();
+            //try
+            //{
+            //    var LisTest = Proxy.List("/").GetAwaiter().GetResult();
+            //}
+            //catch (WebDAVException ex) when (ex.GetHttpCode() == 401)
+            //{
+            //    throw new Exception($"Cannot connect to server : Invalid credentials");
+            //}
+            //catch (Exception ex)
+            //{
+            //    throw new Exception($"Cannot connect to server : {ex.Message}");
+            //}
         }
 
         /// <summary>
@@ -229,13 +246,13 @@ namespace KS2Drive.FS
         }
 
         public override Int32 Open(
-            String FileName,
-            UInt32 CreateOptions,
-            UInt32 GrantedAccess,
-            out Object FileNode0,
-            out Object FileDesc,
-            out FileInfo FileInfo,
-            out String NormalizedName)
+    String FileName,
+    UInt32 CreateOptions,
+    UInt32 GrantedAccess,
+    out Object FileNode0,
+    out Object FileDesc,
+    out FileInfo FileInfo,
+    out String NormalizedName)
         {
             String OperationId = Guid.NewGuid().ToString();
             DebugStart(OperationId, FileName);
@@ -255,7 +272,6 @@ namespace KS2Drive.FS
                 {
                     if (KnownNode.IsNonExistent)
                     {
-                        //The file is known to be non-existent
                         DebugEnd(OperationId, null, $"STATUS_OBJECT_NAME_NOT_FOUND");
                         return STATUS_OBJECT_NAME_NOT_FOUND;
                     }
@@ -267,33 +283,14 @@ namespace KS2Drive.FS
                         var Proxy = new WebDavClient2();
                         RepositoryObject = Proxy.GetRepositoryElement(FileName);
                     }
-                    catch (WebDAVException ex) when (ex.GetHttpCode() == 401)
-                    {
-                        RepositoryAuthenticationFailed?.Invoke(this, null);
-                        Cache.Clear();
-                        return STATUS_OBJECT_NAME_NOT_FOUND;
-                    }
-                    catch (WebDAVException ex)
-                    {
-                        Cache.AddMissingFileNoLock(FileName);
-                        DebugEnd(OperationId, null, $"STATUS_OBJECT_NAME_NOT_FOUND - {ex.Message}");
-                        return STATUS_OBJECT_NAME_NOT_FOUND;
-                    }
-                    catch (HttpRequestException ex)
-                    {
-                        DebugEnd(OperationId, null, $"STATUS_NETWORK_UNREACHABLE - {ex.Message}");
-                        return STATUS_NETWORK_UNREACHABLE;
-                    }
                     catch (Exception ex)
                     {
-                        Cache.AddMissingFileNoLock(FileName);
-                        DebugEnd(OperationId, null, $"STATUS_OBJECT_NAME_NOT_FOUND - {ex.Message}");
-                        return STATUS_OBJECT_NAME_NOT_FOUND;
+                        DebugEnd(OperationId, null, $"Error in Open: {ex.Message}");
+                        return STATUS_UNEXPECTED_IO_ERROR;
                     }
 
                     if (RepositoryObject == null)
                     {
-                        Cache.AddMissingFileNoLock(FileName);
                         DebugEnd(OperationId, null, "STATUS_OBJECT_NAME_NOT_FOUND");
                         return STATUS_OBJECT_NAME_NOT_FOUND;
                     }
@@ -488,8 +485,8 @@ namespace KS2Drive.FS
                 return FileSystemBase.STATUS_CANNOT_MAKE;
             }
 
-            String NewDocumentName = Path.GetFileName(FileName);
-            String NewDocumentParentPath = Path.GetDirectoryName(FileName);
+            String NewDocumentName = System.IO.Path.GetFileName(FileName);
+            String NewDocumentParentPath = System.IO.Path.GetDirectoryName(FileName);
             String RepositoryNewDocumentParentPath = FileNode.ConvertLocalPathToRepositoryPath(NewDocumentParentPath);
 
             if ((FileAttributes & (UInt32)System.IO.FileAttributes.Directory) == 0)
@@ -797,7 +794,7 @@ namespace KS2Drive.FS
                 DebugStart(OperationId, CFN);
 
                 if (FileNode.IsRepositoryRootPath(CFN.RepositoryPath)) return;
-
+                
                 if ((Flags & CleanupSetAllocationSize) != 0)
                 {
                     UInt64 AllocationUnit = MEMFS_SECTOR_SIZE * MEMFS_SECTORS_PER_ALLOCATION_UNIT;
@@ -808,8 +805,25 @@ namespace KS2Drive.FS
                 string secure = BitConverter.ToString(CFN.FileSecurity);
                 if ((Flags & CleanupDelete) != 0)
                 {
+                    string safePath = CFN.RepositoryPath.Replace('/', System.IO.Path.DirectorySeparatorChar);
+                    string dir = System.IO.Path.GetDirectoryName(safePath)?.Replace(System.IO.Path.DirectorySeparatorChar, '/');
+                    bool isDelete = true;
+                    foreach (var permis in PermissionDrive)
+                    {
+                        if (dir == permis.filepath)
+                        {
+                            if (permis.Delete)
+                            {
+                                MessageBox.Show("ไม่สามารถลบรายการนี้ได้", "แจ้งเตือน", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                isDelete = false;
+                                SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATH, Marshal.StringToHGlobalUni(@"F:\"), IntPtr.Zero);
+                                break;
+                            }
+
+                        }
+                    }
                     var Proxy = new WebDavClient2();
-                    if ((CFN.FileInfo.FileAttributes & (UInt32)FileAttributes.Directory) == 0)
+                    if ((CFN.FileInfo.FileAttributes & (UInt32)FileAttributes.Directory) == 0 && isDelete)
                     {
                         try
                         {
@@ -828,7 +842,7 @@ namespace KS2Drive.FS
                             DebugEnd(OperationId, CFN, $"Exception : {ex.Message}");
                         }
                     }
-                    else
+                    else if(isDelete)
                     {
                         try
                         {
@@ -1070,7 +1084,7 @@ namespace KS2Drive.FS
                     //ContrainedIo - we cannot increase the file size so EndOffset will always be at maximum equal to CFN.FileInfo.FileSize
                     if (Offset >= CFN.FileInfo.FileSize)
                     {
-                        logger.Trace($"{CFN.ObjectId} ***Write*** {CFN.Name} [{Path.GetFileName(CFN.Name)}] Case 1");
+                        logger.Trace($"{CFN.ObjectId} ***Write*** {CFN.Name} [{System.IO.Path.GetFileName(CFN.Name)}] Case 1");
                         BytesTransferred = default(UInt32);
                         FileInfo = default(FileInfo);
                         DebugEnd(OperationId, CFN, "STATUS_SUCCESS");
@@ -1092,7 +1106,7 @@ namespace KS2Drive.FS
                         Int32 Result = SetFileSizeInternal(CFN, EndOffset, false);
                         if (Result < 0)
                         {
-                            logger.Trace($"{CFN.ObjectId} ***Write*** {CFN.Name} [{Path.GetFileName(CFN.Name)}] Case 2");
+                            logger.Trace($"{CFN.ObjectId} ***Write*** {CFN.Name} [{System.IO.Path.GetFileName(CFN.Name)}] Case 2");
                             BytesTransferred = default(UInt32);
                             FileInfo = default(FileInfo);
                             DebugEnd(OperationId, CFN, "STATUS_UNEXPECTED_IO_ERROR : " + Result.ToString());
@@ -1735,35 +1749,65 @@ namespace KS2Drive.FS
             base.Unmounted(Host);
         }
 
-        private void TraceStart(string OperationId, FileNode CFN, [CallerMemberName]string Caller = "")
+        private void TraceStart(string OperationId, FileNode CFN, [CallerMemberName] string Caller = "")
         {
             logger.Trace($"{OperationId}|{Caller}|Start|{JsonConvert.SerializeObject(CFN)}");
         }
 
-        private void TraceStart(String OperationId, String FileName, [CallerMemberName]string Caller = "")
+        private void TraceStart(String OperationId, String FileName, [CallerMemberName] string Caller = "")
         {
             logger.Trace($"{OperationId}|{Caller}|Start|{FileName}");
         }
 
-        private void TraceEnd(String OperationId, FileNode CFN, String Result, [CallerMemberName]string Caller = "")
+        private void TraceEnd(String OperationId, FileNode CFN, String Result, [CallerMemberName] string Caller = "")
         {
             logger.Trace($"{OperationId}|{Caller}|End|{Result}");
         }
 
-        private void DebugStart(string OperationId, FileNode CFN, [CallerMemberName]string Caller = "")
+        private void DebugStart(string OperationId, FileNode CFN, [CallerMemberName] string Caller = "")
         {
             logger.Debug($"{OperationId}|{Caller}|Start|{JsonConvert.SerializeObject(CFN)}");
         }
 
-        private void DebugStart(String OperationId, String FileName, [CallerMemberName]string Caller = "")
+        private void DebugStart(String OperationId, String FileName, [CallerMemberName] string Caller = "")
         {
             logger.Debug($"{OperationId}|{Caller}|Start|{FileName}");
         }
 
-        private void DebugEnd(String OperationId, FileNode CFN, String Result, [CallerMemberName]string Caller = "")
+        private void DebugEnd(String OperationId, FileNode CFN, String Result, [CallerMemberName] string Caller = "")
         {
             logger.Debug($"{OperationId}|{Caller}|End|{Result}");
         }
+        public static Dictionary<string, bool> CheckPermissions(int permissionValue)
+        {
+            // กำหนดค่าของสิทธิ์
+            Dictionary<string, int> permissionsMap = new Dictionary<string, int>
+        {
+            { "Create", 4 },
+            { "Read", 1 },
+            { "Update", 2 },
+            { "Delete", 8 },
+            { "Share", 16 }
+        };
+
+            Dictionary<string, bool> result = new Dictionary<string, bool>();
+            foreach (var permission in permissionsMap)
+            {
+                // ตรวจสอบด้วย bitwise AND และกำหนดค่า True/False
+                result[permission.Key] = (permissionValue & permission.Value) != 0;
+            }
+            return result;
+        }
+        private class PermissionModel
+        {
+            public string filepath { get; set; }
+            public bool Create { get; set; }
+            public bool Read { get; set; }
+            public bool Update { get; set; }
+            public bool Delete { get; set; }
+            public bool Share { get; set; }
+        }
+
     }
 
     public static class Extension

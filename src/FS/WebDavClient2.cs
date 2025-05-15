@@ -12,7 +12,7 @@ namespace KS2Drive.FS
     public class WebDavClient2 : WebDAVClient.Client
     {
         private static Logger logger = LogManager.GetCurrentClassLogger();
-        private static String _RootPath;
+        private static List<string> _RootPaths = new List<string>();
         private static String _Server;
         private static String _Login;
         private static String _Password;
@@ -21,7 +21,10 @@ namespace KS2Drive.FS
 
         public static void Init(String Server, String BasePath, String Login, String Password, X509Certificate2 ClientCert)
         {
-            WebDavClient2._RootPath = BasePath;
+            if (!_RootPaths.Contains(BasePath))
+            {
+                _RootPaths.Add(BasePath);
+            }
             WebDavClient2._Server = Server;
             WebDavClient2._Login = Login;
             WebDavClient2._Password = Password;
@@ -30,19 +33,40 @@ namespace KS2Drive.FS
         }
 
         public WebDavClient2(TimeSpan? uploadTimeout = null) :
-            base(new NetworkCredential { UserName = WebDavClient2._Login, Password = WebDavClient2._Password }, uploadTimeout, null, WebDavClient2._ClientCert)
+        base(new NetworkCredential { UserName = _Login, Password = _Password }, uploadTimeout, null, _ClientCert)
         {
-            if (!WebDavClient2._IsInited) throw new InvalidOperationException("Please Call Init First");
-            base.Server = WebDavClient2._Server;
-            base.BasePath = WebDavClient2._RootPath;
+            if (!_IsInited) throw new InvalidOperationException("Please Call Init First");
+            base.Server = _Server;
+            foreach (var path in _RootPaths)
+            {
+                base.BasePath = path;
+                try
+                {
+                    var test = this.List(path).GetAwaiter().GetResult();
+                    if (test != null)
+                    {
+                        logger.Info($"Using WebDAV path: {path}");
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.Warn(ex, $"WebDAV path not available: {path}");
+                }
+            }
+
+            throw new InvalidOperationException("No usable WebDAV root paths found.");
         }
 
-        private String ParameterConvert(String input)
+        public string ParameterConvert(string input)
+    {
+        foreach (var rootPath in _RootPaths)
         {
-            if (input.StartsWith(WebDavClient2._RootPath)) return input.Substring(WebDavClient2._RootPath.Length);
-            else return input;
+            if (input.StartsWith(rootPath))
+                return input.Substring(rootPath.Length);
         }
-
+        return input;
+    }
         public new Task<bool> CreateDir(string remotePath, string name)
         {
             remotePath = ParameterConvert(remotePath);

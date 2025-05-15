@@ -69,5 +69,6 @@ namespace KS2Drive.Config
         public String CertStoreName { get; set; }
         public String CertStoreLocation { get; set; }
         public String CertSerial { get; set; }
+        public int Permission { get; set; }
     }
 }
