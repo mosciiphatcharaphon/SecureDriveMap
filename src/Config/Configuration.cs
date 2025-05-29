@@ -42,12 +42,12 @@ namespace KS2Drive.Config
         public bool IsConfigured { get; set; } = true;
 
         //Startup
-        public bool AutoMount { get; set; }
-        public bool AutoStart { get; set; }
+        public bool AutoMount { get; set; } = true;
+        public bool AutoStart { get; set; } = true;
 
         //Drive Parameter
         public String DriveLetter { get; set; }
-        public String ServerURL { get; set; }
+        public String ServerURL { get; set; } = "http://192.168.3.110/remote.php/dav/files/admin/";
         public Int32 ServerType { get; set; } = 0;
         public String ServerLogin { get; set; }
         public String ServerPassword { get; set; }

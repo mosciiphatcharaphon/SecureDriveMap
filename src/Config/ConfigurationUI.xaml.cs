@@ -35,75 +35,75 @@ namespace KS2Drive.Config
                 FreeDrives.Remove(drive[0]); // removed used drive letters from possible drive letters
             }
 
-            foreach (char drive in FreeDrives)
-            {
-                CBFreeDrives.Items.Add(drive); // add unused drive letters to the combo box
-            }
+            //foreach (char drive in FreeDrives)
+            //{
+            //    CBFreeDrives.Items.Add(drive); // add unused drive letters to the combo box
+            //}
 
-            CBFreeDrives.SelectedIndex = 0;
+            //CBFreeDrives.SelectedIndex = 0;
 
-            CBMode.SelectedValuePath = "Key";
-            CBMode.DisplayMemberPath = "Value";
-            CBMode.Items.Add(new KeyValuePair<int, string>(0, "webDAV"));
-            CBMode.Items.Add(new KeyValuePair<int, string>(1, "AOS"));
-            CBMode.SelectedIndex = 0;
+            //CBMode.SelectedValuePath = "Key";
+            //CBMode.DisplayMemberPath = "Value";
+            //CBMode.Items.Add(new KeyValuePair<int, string>(0, "webDAV"));
+            //CBMode.Items.Add(new KeyValuePair<int, string>(1, "AOS"));
+            //CBMode.SelectedIndex = 0;
 
-            CBKernelCache.SelectedValuePath = "Key";
-            CBKernelCache.DisplayMemberPath = "Value";
-            CBKernelCache.Items.Add(new KeyValuePair<int, string>((Int32)KernelCacheMode.Disabled, KernelCacheMode.Disabled.ToString()));
-            CBKernelCache.Items.Add(new KeyValuePair<int, string>((Int32)KernelCacheMode.MetaDataOnly, KernelCacheMode.MetaDataOnly.ToString()));
-            CBKernelCache.Items.Add(new KeyValuePair<int, string>((Int32)KernelCacheMode.DataAndMetaData, KernelCacheMode.DataAndMetaData.ToString()));
-            CBKernelCache.SelectedIndex = 2;
+            //CBKernelCache.SelectedValuePath = "Key";
+            //CBKernelCache.DisplayMemberPath = "Value";
+            //CBKernelCache.Items.Add(new KeyValuePair<int, string>((Int32)KernelCacheMode.Disabled, KernelCacheMode.Disabled.ToString()));
+            //CBKernelCache.Items.Add(new KeyValuePair<int, string>((Int32)KernelCacheMode.MetaDataOnly, KernelCacheMode.MetaDataOnly.ToString()));
+            //CBKernelCache.Items.Add(new KeyValuePair<int, string>((Int32)KernelCacheMode.DataAndMetaData, KernelCacheMode.DataAndMetaData.ToString()));
+            //CBKernelCache.SelectedIndex = 2;
 
-            CBFlush.SelectedValuePath = "Key";
-            CBFlush.DisplayMemberPath = "Value";
-            CBFlush.Items.Add(new KeyValuePair<int, string>((Int32)FlushMode.FlushAtCleanup, FlushMode.FlushAtCleanup.ToString()));
-            CBFlush.Items.Add(new KeyValuePair<int, string>((Int32)FlushMode.FlushAtWrite, FlushMode.FlushAtWrite.ToString()));
-            CBFlush.SelectedIndex = 0;
+            //CBFlush.SelectedValuePath = "Key";
+            //CBFlush.DisplayMemberPath = "Value";
+            //CBFlush.Items.Add(new KeyValuePair<int, string>((Int32)FlushMode.FlushAtCleanup, FlushMode.FlushAtCleanup.ToString()));
+            //CBFlush.Items.Add(new KeyValuePair<int, string>((Int32)FlushMode.FlushAtWrite, FlushMode.FlushAtWrite.ToString()));
+            //CBFlush.SelectedIndex = 0;
 
-            CBSyncOps.SelectedValuePath = "Key";
-            CBSyncOps.DisplayMemberPath = "Value";
-            CBSyncOps.Items.Add(new KeyValuePair<int, string>(0, "No"));
-            CBSyncOps.Items.Add(new KeyValuePair<int, string>(1, "Yes"));
-            CBSyncOps.SelectedIndex = 0;
+            //CBSyncOps.SelectedValuePath = "Key";
+            //CBSyncOps.DisplayMemberPath = "Value";
+            //CBSyncOps.Items.Add(new KeyValuePair<int, string>(0, "No"));
+            //CBSyncOps.Items.Add(new KeyValuePair<int, string>(1, "Yes"));
+            //CBSyncOps.SelectedIndex = 0;
 
-            CBPreloading.SelectedValuePath = "Key";
-            CBPreloading.DisplayMemberPath = "Value";
-            CBPreloading.Items.Add(new KeyValuePair<int, string>(0, "No"));
-            CBPreloading.Items.Add(new KeyValuePair<int, string>(1, "Yes"));
-            CBPreloading.SelectedIndex = 1;
+            //CBPreloading.SelectedValuePath = "Key";
+            //CBPreloading.DisplayMemberPath = "Value";
+            //CBPreloading.Items.Add(new KeyValuePair<int, string>(0, "No"));
+            //CBPreloading.Items.Add(new KeyValuePair<int, string>(1, "Yes"));
+            //CBPreloading.SelectedIndex = 1;
 
-            CBMountAsNetworkDrive.SelectedValuePath = "Key";
-            CBMountAsNetworkDrive.DisplayMemberPath = "Value";
-            CBMountAsNetworkDrive.Items.Add(new KeyValuePair<int, string>(0, "No"));
-            CBMountAsNetworkDrive.Items.Add(new KeyValuePair<int, string>(1, "Yes"));
-            CBMountAsNetworkDrive.SelectedIndex = 0;
+            //CBMountAsNetworkDrive.SelectedValuePath = "Key";
+            //CBMountAsNetworkDrive.DisplayMemberPath = "Value";
+            //CBMountAsNetworkDrive.Items.Add(new KeyValuePair<int, string>(0, "No"));
+            //CBMountAsNetworkDrive.Items.Add(new KeyValuePair<int, string>(1, "Yes"));
+            //CBMountAsNetworkDrive.SelectedIndex = 0;
 
-            //Reload values from config
-            this.AppConfiguration = ((App)Application.Current).AppConfiguration;
-            if (!String.IsNullOrEmpty(this.AppConfiguration.DriveLetter)) CBFreeDrives.SelectedIndex = CBFreeDrives.Items.IndexOf(this.AppConfiguration.DriveLetter[0]) == -1 ? 0 : CBFreeDrives.Items.IndexOf(this.AppConfiguration.DriveLetter[0]);
-            if (!String.IsNullOrEmpty(this.AppConfiguration.ServerURL)) txtURL.Text = this.AppConfiguration.ServerURL;
+            ////Reload values from config
+            //this.AppConfiguration = ((App)Application.Current).AppConfiguration;
+            //if (!String.IsNullOrEmpty(this.AppConfiguration.DriveLetter)) CBFreeDrives.SelectedIndex = CBFreeDrives.Items.IndexOf(this.AppConfiguration.DriveLetter[0]) == -1 ? 0 : CBFreeDrives.Items.IndexOf(this.AppConfiguration.DriveLetter[0]);
+            //if (!String.IsNullOrEmpty(this.AppConfiguration.ServerURL)) txtURL.Text = this.AppConfiguration.ServerURL;
 
-            var ServerTypeMatchingItem = CBMode.Items.Cast<KeyValuePair<int, string>>().FirstOrDefault(x => x.Key.Equals(this.AppConfiguration.ServerType));
-            if (!ServerTypeMatchingItem.Equals(default(KeyValuePair<int, string>))) CBMode.SelectedItem = ServerTypeMatchingItem;
+            //var ServerTypeMatchingItem = CBMode.Items.Cast<KeyValuePair<int, string>>().FirstOrDefault(x => x.Key.Equals(this.AppConfiguration.ServerType));
+            //if (!ServerTypeMatchingItem.Equals(default(KeyValuePair<int, string>))) CBMode.SelectedItem = ServerTypeMatchingItem;
 
             if (!String.IsNullOrEmpty(this.AppConfiguration.ServerLogin)) txtLogin.Text = this.AppConfiguration.ServerLogin;
             if (!String.IsNullOrEmpty(this.AppConfiguration.ServerPassword)) txtPassword.Password = this.AppConfiguration.ServerPassword;
 
-            var KernelCacheMatchingItem = CBKernelCache.Items.Cast<KeyValuePair<int, string>>().FirstOrDefault(x => x.Key.Equals(this.AppConfiguration.KernelCacheMode));
-            if (!KernelCacheMatchingItem.Equals(default(KeyValuePair<int, string>))) CBKernelCache.SelectedItem = KernelCacheMatchingItem;
+            //var KernelCacheMatchingItem = CBKernelCache.Items.Cast<KeyValuePair<int, string>>().FirstOrDefault(x => x.Key.Equals(this.AppConfiguration.KernelCacheMode));
+            //if (!KernelCacheMatchingItem.Equals(default(KeyValuePair<int, string>))) CBKernelCache.SelectedItem = KernelCacheMatchingItem;
 
-            var FlushMatchingItem = CBFlush.Items.Cast<KeyValuePair<int, string>>().FirstOrDefault(x => x.Key.Equals(this.AppConfiguration.FlushMode));
-            if (!FlushMatchingItem.Equals(default(KeyValuePair<int, string>))) CBFlush.SelectedItem = FlushMatchingItem;
+            //var FlushMatchingItem = CBFlush.Items.Cast<KeyValuePair<int, string>>().FirstOrDefault(x => x.Key.Equals(this.AppConfiguration.FlushMode));
+            //if (!FlushMatchingItem.Equals(default(KeyValuePair<int, string>))) CBFlush.SelectedItem = FlushMatchingItem;
 
-            var SyncOpsMatchingItem = CBSyncOps.Items.Cast<KeyValuePair<int, string>>().FirstOrDefault(x => x.Key.Equals(Convert.ToInt32(this.AppConfiguration.SyncOps)));
-            if (!SyncOpsMatchingItem.Equals(default(KeyValuePair<int, string>))) CBSyncOps.SelectedItem = SyncOpsMatchingItem;
+            //var SyncOpsMatchingItem = CBSyncOps.Items.Cast<KeyValuePair<int, string>>().FirstOrDefault(x => x.Key.Equals(Convert.ToInt32(this.AppConfiguration.SyncOps)));
+            //if (!SyncOpsMatchingItem.Equals(default(KeyValuePair<int, string>))) CBSyncOps.SelectedItem = SyncOpsMatchingItem;
 
-            var PreloadingMatchingItem = CBPreloading.Items.Cast<KeyValuePair<int, string>>().FirstOrDefault(x => x.Key.Equals(Convert.ToInt32(this.AppConfiguration.PreLoading)));
-            if (!PreloadingMatchingItem.Equals(default(KeyValuePair<int, string>))) CBPreloading.SelectedItem = PreloadingMatchingItem;
+            //var PreloadingMatchingItem = CBPreloading.Items.Cast<KeyValuePair<int, string>>().FirstOrDefault(x => x.Key.Equals(Convert.ToInt32(this.AppConfiguration.PreLoading)));
+            //if (!PreloadingMatchingItem.Equals(default(KeyValuePair<int, string>))) CBPreloading.SelectedItem = PreloadingMatchingItem;
 
-            var MountAsNetworkDriveMatchingItem = CBMountAsNetworkDrive.Items.Cast<KeyValuePair<int, string>>().FirstOrDefault(x => x.Key.Equals(Convert.ToInt32(this.AppConfiguration.MountAsNetworkDrive)));
-            if (!MountAsNetworkDriveMatchingItem.Equals(default(KeyValuePair<int, string>))) CBMountAsNetworkDrive.SelectedItem = MountAsNetworkDriveMatchingItem;
+            //var MountAsNetworkDriveMatchingItem = CBMountAsNetworkDrive.Items.Cast<KeyValuePair<int, string>>().FirstOrDefault(x => x.Key.Equals(Convert.ToInt32(this.AppConfiguration.MountAsNetworkDrive)));
+            //if (!MountAsNetworkDriveMatchingItem.Equals(default(KeyValuePair<int, string>))) CBMountAsNetworkDrive.SelectedItem = MountAsNetworkDriveMatchingItem;
 
             //Look for certificate
             if (this.AppConfiguration.UseClientCertForAuthentication) Chk_UserClientCert.IsChecked = false;
@@ -120,21 +120,21 @@ namespace KS2Drive.Config
 
         private void bt_Save_Click(object sender, RoutedEventArgs e)
         {
-            if (String.IsNullOrEmpty(txtURL.Text))
-            {
-                MessageBox.Show("URL is mandatory");
-                return;
-            }
+            //if (String.IsNullOrEmpty(txtURL.Text))
+            //{
+            //    MessageBox.Show("URL is mandatory");
+            //    return;
+            //}
 
-            try
-            {
-                var u = new Uri(txtURL.Text);
-            }
-            catch
-            {
-                MessageBox.Show("The selected URL is not valid");
-                return;
-            }
+            //try
+            //{
+            //    var u = new Uri(txtURL.Text);
+            //}
+            //catch
+            //{
+            //    MessageBox.Show("The selected URL is not valid");
+            //    return;
+            //}
 
             if (String.IsNullOrEmpty(txtLogin.Text))
             {
@@ -167,16 +167,16 @@ namespace KS2Drive.Config
             }
             rkApp.Close();
 
-            this.AppConfiguration.DriveLetter = CBFreeDrives.SelectedValue.ToString();
-            this.AppConfiguration.ServerURL = txtURL.Text;
-            this.AppConfiguration.ServerType = (Int32)CBMode.SelectedValue;
+            //this.AppConfiguration.DriveLetter = CBFreeDrives.SelectedValue.ToString();
+            //this.AppConfiguration.ServerURL = txtURL.Text;
+            //this.AppConfiguration.ServerType = (Int32)CBMode.SelectedValue;
             this.AppConfiguration.ServerLogin = txtLogin.Text;
             this.AppConfiguration.ServerPassword = txtPassword.Password;
-            this.AppConfiguration.KernelCacheMode = Convert.ToInt32(CBKernelCache.SelectedValue);
-            this.AppConfiguration.SyncOps = Convert.ToBoolean(Convert.ToInt16(CBSyncOps.SelectedValue));
-            this.AppConfiguration.PreLoading = Convert.ToBoolean(Convert.ToInt16(CBPreloading.SelectedValue));
-            this.AppConfiguration.FlushMode = Convert.ToInt32(CBFlush.SelectedValue);
-            this.AppConfiguration.MountAsNetworkDrive = Convert.ToBoolean(CBMountAsNetworkDrive.SelectedValue);
+            //this.AppConfiguration.KernelCacheMode = Convert.ToInt32(CBKernelCache.SelectedValue);
+            //this.AppConfiguration.SyncOps = Convert.ToBoolean(Convert.ToInt16(CBSyncOps.SelectedValue));
+            //this.AppConfiguration.PreLoading = Convert.ToBoolean(Convert.ToInt16(CBPreloading.SelectedValue));
+            //this.AppConfiguration.FlushMode = Convert.ToInt32(CBFlush.SelectedValue);
+            //this.AppConfiguration.MountAsNetworkDrive = Convert.ToBoolean(CBMountAsNetworkDrive.SelectedValue);
             this.AppConfiguration.UseClientCertForAuthentication = Chk_UserClientCert.IsChecked.Value;
 
             try
@@ -196,7 +196,7 @@ namespace KS2Drive.Config
 
         private void PasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
         {
-            this.AppConfiguration.ProxyPassword = ProxyPassword.Password;
+            //this.AppConfiguration.ProxyPassword = ProxyPassword.Password;
         }
 
         private void bt_UserClientCertSelect_Click(object sender, RoutedEventArgs e)

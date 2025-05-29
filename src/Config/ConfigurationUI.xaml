@@ -40,7 +40,7 @@
                         <RowDefinition Height="*"></RowDefinition>
                     </Grid.RowDefinitions>
 
-                    <Border Grid.Row="0" Grid.ColumnSpan="2" Grid.Column="0" BorderBrush="Gainsboro" BorderThickness="1" Padding="5" Margin="0,5,0,5">
+                    <!--<Border Grid.Row="0" Grid.ColumnSpan="2" Grid.Column="0" BorderBrush="Gainsboro" BorderThickness="1" Padding="5" Margin="0,5,0,5">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="120"></ColumnDefinition>
@@ -83,9 +83,9 @@
                             <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" >Type</TextBlock>
                             <ComboBox Grid.Row="2" Grid.Column="2" x:Name="CBMode"  Width="150"  HorizontalAlignment="Left" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
-                    </Border>
+                    </Border>-->
 
-                    <Border Grid.Row="1" Grid.ColumnSpan="2" Grid.Column="0" BorderBrush="Gainsboro" BorderThickness="1" Padding="5" Margin="0,5,0,5">
+                    <Border Grid.Row="0" Grid.ColumnSpan="2" Grid.Column="0" BorderBrush="Gainsboro" BorderThickness="1" Padding="5" Margin="0,5,0,5">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="120"></ColumnDefinition>
@@ -130,7 +130,7 @@
                         </Grid>
                     </Border>
 
-                    <Border Grid.Row="2" Grid.ColumnSpan="2" Grid.Column="0" BorderBrush="Gainsboro" BorderThickness="1" Padding="5" Margin="0,5,0,5">
+                    <Border Grid.Row="1" Grid.ColumnSpan="2" Grid.Column="0" BorderBrush="Gainsboro" BorderThickness="1" Padding="5" Margin="0,5,0,5">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="35"></RowDefinition>
@@ -145,7 +145,7 @@
 
 
             </TabItem>
-            <TabItem Header="Advanced">
+            <!--<TabItem Header="Advanced">
                 <Border BorderThickness="1" BorderBrush="Gainsboro">
                     <Grid Margin="10">
                         <Grid.ColumnDefinitions>
@@ -233,7 +233,7 @@
                     </Border>
 
                 </Grid>
-            </TabItem>
+            </TabItem>-->
         </TabControl>
 
 
