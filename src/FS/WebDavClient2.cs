@@ -13,18 +13,25 @@ namespace KS2Drive.FS
     {
         private static Logger logger = LogManager.GetCurrentClassLogger();
         private static List<string> _RootPaths = new List<string>();
+        private static List<DrivePathModel> DrivePath = new List<DrivePathModel>();
         private static String _Server;
         private static String _Login;
         private static String _Password;
         private static bool _IsInited = false;
         private static X509Certificate2 _ClientCert;
 
-        public static void Init(String Server, String BasePath, String Login, String Password, X509Certificate2 ClientCert)
+        public static void Init(String DriveLetter, String Server, String BasePath, String Login, String Password, X509Certificate2 ClientCert)
         {
             if (!_RootPaths.Contains(BasePath))
             {
                 _RootPaths.Add(BasePath);
             }
+            var mapDrive = new DrivePathModel
+            {
+                DriveLetter = DriveLetter,
+                RootPath = BasePath
+            };
+            DrivePath.Add(mapDrive);
             WebDavClient2._Server = Server;
             WebDavClient2._Login = Login;
             WebDavClient2._Password = Password;
@@ -133,9 +140,24 @@ namespace KS2Drive.FS
         /// Retrieve a file or folder from the remote repository
         /// Return either a RepositoryElement or a FileSystem Error Message
         /// </summary>
-        public WebDAVClient.Model.Item GetRepositoryElement(String LocalFileName)
+        public WebDAVClient.Model.Item GetRepositoryElement(String LocalFileName, String DriveLetter)
         {
             String RepositoryDocumentName = FileNode.ConvertLocalPathToRepositoryPath(LocalFileName);
+            foreach (var drive in DrivePath)
+            {
+                if (DriveLetter == drive.DriveLetter)
+                {
+                    if (LocalFileName != "\\") 
+                    {
+                        String ReworkdPath = drive.RootPath + LocalFileName.Replace(System.IO.Path.DirectorySeparatorChar, '/');
+                        if (ReworkdPath.EndsWith("/"))
+                        {
+                            ReworkdPath = ReworkdPath.Substring(0, ReworkdPath.Length - 1);
+                        }
+                        RepositoryDocumentName =  ReworkdPath;
+                    }
+                }
+            }
             WebDAVClient.Model.Item RepositoryElement = null;
 
             if (RepositoryDocumentName.Contains("."))
@@ -199,5 +221,10 @@ namespace KS2Drive.FS
                 }
             }
         }
+    }
+    public class DrivePathModel
+    {
+        public String DriveLetter { get; set; }
+        public String RootPath { get; set; }
     }
 }

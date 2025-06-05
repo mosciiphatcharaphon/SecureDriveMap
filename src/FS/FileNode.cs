@@ -1,6 +1,7 @@
 ﻿using Fsp.Interop;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.Security.AccessControl;
 using System.Web;
 
@@ -108,9 +109,9 @@ namespace KS2Drive.FS
         public static String ConvertRepositoryPathToLocalPath(String CMISPath)
         {
             if (CMISPath.EndsWith("/")) CMISPath = CMISPath.Substring(0, CMISPath.Length - 1);
-
             String ReworkdPath = CMISPath.Replace(_DocumentLibraryPath, "").Replace('/', System.IO.Path.DirectorySeparatorChar);
             if (!ReworkdPath.StartsWith(System.IO.Path.DirectorySeparatorChar.ToString())) ReworkdPath = System.IO.Path.DirectorySeparatorChar + ReworkdPath;
+
             return ReworkdPath;
         }
 
@@ -120,7 +121,6 @@ namespace KS2Drive.FS
             if (ReworkdPath.EndsWith("/")) ReworkdPath = ReworkdPath.Substring(0, ReworkdPath.Length - 1);
             return ReworkdPath;
         }
-
         public static Byte[] GetDefaultSecurity()
         {
             //https://blogs.technet.microsoft.com/askds/2008/04/18/the-security-descriptor-definition-language-of-love-part-1/
@@ -201,5 +201,10 @@ namespace KS2Drive.FS
                 TemporaryLocalCopyPath = null; //Cannot generate a local copy of the file. Disable the option allowing the user to save the file locally
             }
         }
+    }
+    public class DrivePathList
+    {
+        public string URLPath { get; set; }
+        public string DriveLetter { get; set; }
     }
 }

@@ -16,6 +16,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Xml.Linq;
 using System.Xml.Serialization;
 using static KS2Drive.FSPService;
 
@@ -157,22 +158,45 @@ namespace KS2Drive
             string driveLetter = this.AppConfiguration.DriveLetter;
             foreach (var folder in res.Data.Elements)
             {
+                var IsDrive = new List<string>();
                 Configuration newConfig = CloneConfiguration(this.AppConfiguration);
-                newConfig.Permission = GetFolderPermission(folder);
+                var groups = folder.GetGroups();
+                if (groups.Count == 0)
+                {
+                    newConfig.Permission = new List<string>{ "31" };
+                }
+                else
+                {
+                    var permissionList = new List<string>();
+                    foreach (var group in groups)
+                    {
+                        IsDrive.Add(group.Value.IsDrive.ToString());
+                        int permission = group.Value.Permissions;
+                        permissionList.Add(permission.ToString());
+                    }
+                    newConfig.Permission = permissionList.Distinct().ToList();
+                }
                 if (folder.Id != -1 && !string.IsNullOrEmpty(folder.ParentsPath))
                 {
                     newConfig.ServerURL = $"{this.AppConfiguration.ServerURL.TrimEnd('/')}/{folder.ParentsPath.TrimStart('/')}/{folder.MountPoint.TrimStart('/')}";
                     newConfig.VolumeLabel = folder.MountPoint;
                 }
-                else
+                else if (folder.Id != -1 && string.IsNullOrEmpty(folder.ParentsPath))
+                {
+                    newConfig.ServerURL = $"{this.AppConfiguration.ServerURL.TrimEnd('/')}/{folder.MountPoint.TrimStart('/')}";
+                    newConfig.VolumeLabel = folder.MountPoint;
+                }
+                // folder ID  = -1 ตือ Main Drive
+                else if (folder.Id == -1)
                 {
                     newConfig.ServerURL = this.AppConfiguration.ServerURL;
                     newConfig.VolumeLabel = $"ไดร์ฟของ {this.AppConfiguration.ServerLogin}";
                 }
-                if (folder.IsDrive != 0 || folder.Id == -1)
+                if (IsDrive.Contains("1") || folder.Id == -1)
                 {
                     newConfig.DriveLetter = GetNextDriveLetter(ref driveLetter);
                     newConfig.quota = ulong.Parse(folder.Quota.ToString());
+                    newConfig.size = ulong.Parse(folder.Size.ToString());
                     try
                     {
                         driveLetterList = await Service.Mount(newConfig);
@@ -217,129 +241,42 @@ namespace KS2Drive
                 CertSerial = source.CertSerial
             };
         }
-        private int GetFolderPermission(GroupElements folder)
-        {
-            if (folder.Groups?.AnyElements == null) return 31;
-
-            foreach (var group in folder.Groups.AnyElements)
-            {
-                if (group.Name == "admin" && int.TryParse(group.InnerText, out int permission))
-                {
-                    return permission;
-                }
-            }
-
-            return 0;
-        }
         private string GetNextDriveLetter(ref string currentLetter)
         {
             var usedDriveLetters = new HashSet<char>(
                 DriveInfo.GetDrives()
                          .Select(d => char.ToUpper(d.Name[0]))
             );
-            char letter = string.IsNullOrEmpty(currentLetter)
-                ? char.ToUpper(this.AppConfiguration.DriveLetter[0])
-                : char.ToUpper(currentLetter[0]);
+            char letter;
+            if (currentLetter == null)
+            {
+                letter = 'E';
+            }
+            else if (string.IsNullOrEmpty(currentLetter))
+            {
+                letter = char.ToUpper(this.AppConfiguration.DriveLetter[0]);
+            }
+            else
+            {
+                letter = char.ToUpper(currentLetter[0]);
+            }
+
             while (letter <= 'Z')
             {
                 if (!usedDriveLetters.Contains(letter))
                 {
                     currentLetter = $"{letter}:";
-                    return currentLetter.Replace(":","");
+                    return currentLetter.Replace(":", "");
                 }
-
                 letter++;
             }
             throw new InvalidOperationException("No available drive letters from A to Z.");
         }
-        //private async void MountDrive()
-        //{
-        //    OcsResponse res = await GetGroupFolderXml(this.AppConfiguration);
-        //    if (res?.Data?.Elements == null) 
-        //        return;
-        //    string driveLetter = "";
-        //    foreach (var folder in res.Data.Elements)
-        //    {
-        //        var newConfig = new Configuration();
-        //        newConfig.IsConfigured = this.AppConfiguration.IsConfigured;
-        //        newConfig.AutoMount = this.AppConfiguration.AutoMount;
-        //        newConfig.DriveLetter = this.AppConfiguration.DriveLetter;
-        //        newConfig.ServerType = this.AppConfiguration.ServerType;
-        //        newConfig.ServerLogin = this.AppConfiguration.ServerLogin;
-        //        newConfig.ServerPassword = this.AppConfiguration.ServerPassword;
-        //        newConfig.KernelCacheMode = this.AppConfiguration.KernelCacheMode;
-        //        newConfig.FlushMode = this.AppConfiguration.FlushMode;
-        //        newConfig.SyncOps = this.AppConfiguration.SyncOps;
-        //        newConfig.PreLoading = this.AppConfiguration.PreLoading;
-        //        newConfig.MountAsNetworkDrive = this.AppConfiguration.MountAsNetworkDrive;
-        //        newConfig.HTTPProxyMode = this.AppConfiguration.HTTPProxyMode;
-        //        newConfig.ProxyURL = this.AppConfiguration.ProxyURL;
-        //        newConfig.UseProxyAuthentication = this.AppConfiguration.UseProxyAuthentication;
-        //        newConfig.ProxyLogin = this.AppConfiguration.ProxyLogin;
-        //        newConfig.ProxyPassword = this.AppConfiguration.ProxyPassword;
-        //        newConfig.UseClientCertForAuthentication = this.AppConfiguration.UseClientCertForAuthentication;
-        //        newConfig.CertStoreName = this.AppConfiguration.CertStoreName;
-        //        newConfig.CertStoreLocation = this.AppConfiguration.CertStoreLocation;
-        //        newConfig.CertSerial = this.AppConfiguration.CertSerial;
-        //        int permission = 0;
-        //        if (folder.Groups.AnyElements != null) 
-        //        {
-        //            foreach (var group in folder.Groups.AnyElements)
-        //            {
-        //                if (group.Name == "admin") 
-        //                {
-        //                    permission = int.Parse(group.InnerText);
-        //                }
-        //            }
-        //        }
-        //        newConfig.Permission = permission;
-        //        if (folder.Id != -1)
-        //        {
-        //            if (!string.IsNullOrEmpty(folder.ParentsPath))
-        //            {
-        //                newConfig.ServerURL = $"{this.AppConfiguration.ServerURL.TrimEnd('/')}/{folder.ParentsPath.TrimStart('/')}/{folder.MountPoint.TrimStart('/')}";
-        //            }
-        //        }
-        //        if (string.IsNullOrEmpty(newConfig.ServerURL))
-        //        {
-        //            newConfig.ServerURL = this.AppConfiguration.ServerURL;
-        //            newConfig.DriveLetter = this.AppConfiguration.DriveLetter;
-        //        }
-        //        if (folder.IsDrive != 0 || folder.Id == -1)
-        //        {
-        //            if (string.IsNullOrEmpty(driveLetter))
-        //            {
-        //                driveLetter = this.AppConfiguration.DriveLetter;
-        //            }
-        //            else
-        //            {
-        //                driveLetter = driveLetterList[driveLetterList.Count - 1];
-        //                driveLetter = ((char)(driveLetter[0] + 1)).ToString();
-        //                newConfig.DriveLetter = driveLetter;
-        //            }
-        //            try
-        //            {
-        //                driveLetterList = await Service.Mount(newConfig);
-        //            }
-        //            catch (Exception ex)
-        //            {
-        //                MessageBox.Show(ex.Message);
-        //                return;
-        //            }
-        //            ItemsToLog.Clear();
-        //            ((MenuItem)AppMenu.Items[0]).Header = "_UNMOUNT";
-        //            IsMounted = true;
-        //            ((MenuItem)AppMenu.Items[2]).IsEnabled = false;
-        //            Process.Start($@"{driveLetter.Replace(":", "")}:\");
-        //            Thread.Sleep(2500);
-        //        }
-
-        //    }
-        //}
         private async Task<OcsResponse> GetGroupFolderXml(Configuration config)
         {
             try
             {
+                config.ServerURL = $"http://192.168.3.113/remote.php/dav/files/{config.ServerLogin}/";
                 var uri = new Uri(config.ServerURL);
                 var baseUrl = $"{uri.Scheme}://{uri.Host}";
                 if (!uri.IsDefaultPort)
@@ -498,7 +435,40 @@ namespace KS2Drive
                 }
             }
         }
+        public static Dictionary<string, bool> CheckPermissions(int permissionValue)
+        {
+            // กำหนดค่าของสิทธิ์
+            Dictionary<string, int> permissionsMap = new Dictionary<string, int>
+        {
+            { "Create", 4 },
+            { "Read", 1 },
+            { "Update", 2 },
+            { "Delete", 8 },
+            { "Share", 16 }
+        };
+
+            Dictionary<string, bool> result = new Dictionary<string, bool>();
+            foreach (var permission in permissionsMap)
+            {
+                // ตรวจสอบด้วย bitwise AND และกำหนดค่า True/False
+                result[permission.Key] = (permissionValue & permission.Value) != 0;
+            }
+            return result;
+        }
         #endregion
 
+    }
+    //Extension methods สำหรับใช้งานง่ายขึ้น
+    public static class GroupElementsExtensions
+    {
+        public static Dictionary<string, GroupInfo> GetGroups(this GroupElements element)
+        {
+            return element.Groups?.ToGroupDictionary() ?? new Dictionary<string, GroupInfo>();
+        }
+
+        public static GroupInfo GetGroup(this GroupElements element, string groupName)
+        {
+            return element.GetGroups().TryGetValue(groupName, out var group) ? group : null;
+        }
     }
 }

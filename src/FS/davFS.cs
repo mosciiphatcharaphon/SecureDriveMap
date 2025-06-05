@@ -39,6 +39,7 @@ namespace KS2Drive.FS
         private UInt32 MaxFileSize;
         private String VolumeLabel;
         private ulong Size;
+        private ulong FreeSize;
         private String DAVServer;
         private string DAVServeurAuthority;
         private FlushMode FlushMode;
@@ -55,6 +56,7 @@ namespace KS2Drive.FS
 
         private const UInt16 MEMFS_SECTOR_SIZE = 4096;
         private const UInt16 MEMFS_SECTORS_PER_ALLOCATION_UNIT = 1;
+        private string DriveLetter;
 
         public DavFS(Configuration config)
         {
@@ -77,24 +79,53 @@ namespace KS2Drive.FS
             {
                 this.Size = config.quota; 
             }
+            this.FreeSize = config.quota - config.size;
             var DavServerURI = new Uri(config.ServerURL);
             this.DAVServer = DavServerURI.GetLeftPart(UriPartial.Authority);
             this.DAVServeurAuthority = DavServerURI.DnsSafeHost;
             this.DocumentLibraryPath = DavServerURI.PathAndQuery.EndsWith("/") ? DavServerURI.PathAndQuery.Remove(DavServerURI.PathAndQuery.Length - 1) : DavServerURI.PathAndQuery;
-            var permissionList = CheckPermissions(config.Permission);
+            var permissionList = new Dictionary<String, Boolean>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var permission in config.Permission)
+            {
+                var intPermis = int.Parse(permission);
+                var currentPermissions = CheckPermissions(intPermis);
+                foreach (var kvp in currentPermissions)
+                {
+                    if (permissionList.ContainsKey(kvp.Key))
+                    {
+                        permissionList[kvp.Key] = permissionList[kvp.Key] && kvp.Value;
+                    }
+                    else
+                    {
+                        permissionList[kvp.Key] = kvp.Value;
+                    }
+                }
+            }
+
             bool Create = permissionList.ContainsKey("Create") && permissionList["Create"];
             bool Read = permissionList.ContainsKey("Read") && permissionList["Read"];
             bool Update = permissionList.ContainsKey("Update") && permissionList["Update"];
             bool Delete = permissionList.ContainsKey("Delete") && permissionList["Delete"];
             bool Share = permissionList.ContainsKey("Share") && permissionList["Share"];
-            PermissionDrive.Add(new PermissionModel() { filepath = this.DocumentLibraryPath, Create = Create, Read = Read, Update = Update, Delete = Delete, Share = Share });
+
+            PermissionDrive.Add(new PermissionModel()
+            {
+                DriveLetter = config.DriveLetter,
+                filepath = this.DocumentLibraryPath,
+                Create = Create,
+                Read = Read,
+                Update = Update,
+                Delete = Delete,
+                Share = Share
+            });
             this.DAVLogin = config.ServerLogin;
             this.DAVPassword = config.ServerPassword;
             DrivePath.Add(new DrivePathList() { URLPath = this.DocumentLibraryPath, DriveLetter = config.DriveLetter });
             FileNode.Init(this.DocumentLibraryPath, this.WebDAVMode);
-            WebDavClient2.Init(this.DAVServer, this.DocumentLibraryPath, this.DAVLogin, this.DAVPassword, config.UseClientCertForAuthentication ? Tools.FindCertificate(config.CertStoreName, config.CertStoreLocation, config.CertSerial) : null);
+            WebDavClient2.Init(config.DriveLetter, this.DAVServer, this.DocumentLibraryPath, this.DAVLogin, this.DAVPassword, config.UseClientCertForAuthentication ? Tools.FindCertificate(config.CertStoreName, config.CertStoreLocation, config.CertSerial) : null);
             Cache = new CacheManager(CacheMode.Enabled, config.PreLoading);
-
+            this.DriveLetter = config.DriveLetter;
             //Test connection to server with the parameters entered in the configuration screen
             //var Proxy = new WebDavClient2();
             //try
@@ -148,7 +179,7 @@ namespace KS2Drive.FS
             //VolumeInfo.TotalSize = MaxFileNodes * (UInt64)MaxFileSize;
             //VolumeInfo.FreeSize = MaxFileNodes * (UInt64)MaxFileSize;
             VolumeInfo.TotalSize = Size;
-            VolumeInfo.FreeSize = Size;
+            VolumeInfo.FreeSize = FreeSize;
             //VolumeInfo.SetVolumeLabel("VolumeLabel");
             VolumeInfo.SetVolumeLabel(VolumeLabel);
             return STATUS_SUCCESS;
@@ -199,7 +230,7 @@ namespace KS2Drive.FS
                     try
                     {
                         var Proxy = new WebDavClient2();
-                        FoundElement = Proxy.GetRepositoryElement(FileName);
+                        FoundElement = Proxy.GetRepositoryElement(FileName , DriveLetter);
                     }
                     catch (WebDAVException ex) when (ex.GetHttpCode() == 401)
                     {
@@ -295,7 +326,7 @@ namespace KS2Drive.FS
                     try
                     {
                         var Proxy = new WebDavClient2();
-                        RepositoryObject = Proxy.GetRepositoryElement(FileName);
+                        RepositoryObject = Proxy.GetRepositoryElement(FileName, DriveLetter);
                     }
                     catch (Exception ex)
                     {
@@ -463,13 +494,12 @@ namespace KS2Drive.FS
             FileDesc = default(Object);
             FileInfo = default(FileInfo);
             NormalizedName = default(String);
-
             FileNode CFN;
             var Proxy = new WebDavClient2();
 
             try
             {
-                WebDAVClient.Model.Item KnownRepositoryElement = Proxy.GetRepositoryElement(FileName);
+                WebDAVClient.Model.Item KnownRepositoryElement = Proxy.GetRepositoryElement(FileName, DriveLetter);
                 if (KnownRepositoryElement != null)
                 {
                     DebugEnd(OperationId, null, "STATUS_OBJECT_NAME_COLLISION");
@@ -510,9 +540,13 @@ namespace KS2Drive.FS
                     bool isCreate = true;
                     foreach (var permis in PermissionDrive)
                     {
-                        if (RepositoryNewDocumentParentPath == permis.filepath)
+                        if (DriveLetter == permis.DriveLetter)
                         {
-                            if (!permis.Create)
+                            if (permis.Create)
+                            {
+                                RepositoryNewDocumentParentPath = permis.filepath;
+                            }
+                            else 
                             {
                                 MessageAlert("แจ้งเตือน", "ไม่สามารถสร้างรายการนี้ได้");
                                 isCreate = false;
@@ -524,7 +558,7 @@ namespace KS2Drive.FS
                     {
                         if (Proxy.Upload(RepositoryNewDocumentParentPath, new MemoryStream(new byte[0]), NewDocumentName).GetAwaiter().GetResult() && isCreate)
                         {
-                            CFN = new FileNode(Proxy.GetRepositoryElement(FileName));
+                            CFN = new FileNode(Proxy.GetRepositoryElement(FileName, DriveLetter));
                             CFN.HasUnflushedData = true;
                         }
                         else
@@ -588,7 +622,7 @@ namespace KS2Drive.FS
                 {
                     if (Proxy.CreateDir(RepositoryNewDocumentParentPath, NewDocumentName).GetAwaiter().GetResult())
                     {
-                        CFN = new FileNode(Proxy.GetRepositoryElement(FileName));
+                        CFN = new FileNode(Proxy.GetRepositoryElement(FileName, DriveLetter));
                     }
                     else
                     {
@@ -1313,7 +1347,7 @@ namespace KS2Drive.FS
 
                 try
                 {
-                    WebDAVClient.Model.Item KnownRepositoryElement = Proxy.GetRepositoryElement(NewFileName);
+                    WebDAVClient.Model.Item KnownRepositoryElement = Proxy.GetRepositoryElement(NewFileName, DriveLetter);
                     if (KnownRepositoryElement != null)
                     {
                         if (!ReplaceIfExists)
@@ -1886,12 +1920,14 @@ namespace KS2Drive.FS
         }
         private class PermissionModel
         {
+            public string DriveLetter { get; set; }
             public string filepath { get; set; }
             public bool Create { get; set; }
             public bool Read { get; set; }
             public bool Update { get; set; }
             public bool Delete { get; set; }
             public bool Share { get; set; }
+
         }
         private class DrivePathList
         {

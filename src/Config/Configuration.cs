@@ -47,7 +47,7 @@ namespace KS2Drive.Config
 
         //Drive Parameter
         public String DriveLetter { get; set; }
-        public String ServerURL { get; set; } = "http://192.168.3.110/remote.php/dav/files/admin/";
+        public String ServerURL { get; set; } = "http://192.168.3.113/remote.php/dav/files/admin/";
         public Int32 ServerType { get; set; } = 0;
         public String ServerLogin { get; set; }
         public String ServerPassword { get; set; }
@@ -69,8 +69,9 @@ namespace KS2Drive.Config
         public String CertStoreName { get; set; }
         public String CertStoreLocation { get; set; }
         public String CertSerial { get; set; }
-        public int Permission { get; set; }
+        public List<String> Permission { get; set; }
         public String VolumeLabel { get; set; }
         public ulong quota { get; set; }
+        public ulong size { get; set; }
     }
 }
